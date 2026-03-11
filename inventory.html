@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <title>BH Agriculture — Inventory</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <link rel="stylesheet" href="css/style.css"/>
+</head>
+<body>
+<header class="topbar">
+  <a href="index.html" class="logo">
+    <span class="logo-mark">🌾</span>
+    <div class="logo-text"><div class="big">BH AGRICULTURE</div><div class="small">Farm Management</div></div>
+  </a>
+  <div class="menu-toggle" onclick="document.getElementById('mainNav').classList.toggle('open')">☰</div>
+  <nav class="nav" id="mainNav">
+    <a href="index.html">📊 Dashboard</a>
+    <a href="farmers.html">👨‍🌾 Farmers</a>
+    <a href="expenses.html">💸 Expenses</a>
+    <a href="loans.html">🏦 Loans</a>
+    <a href="inventory.html" class="active">📦 Inventory</a>
+    <a href="report.html">💾 Backup</a>
+    <button class="btn-ghost" onclick="BH.toggleTheme()">🌓</button>
+    <button class="btn-ghost" onclick="if(confirm('Logout?')){BH.logout();location.href='index.html'}">🚪</button>
+  </nav>
+</header>
+
+<main class="container">
+  <div class="page-header">
+    <div class="page-title">📦 Inventory Management</div>
+    <button class="btn" onclick="openAddModal()">➕ Add Item</button>
+  </div>
+
+  <!-- Category Tabs -->
+  <div class="section-tabs">
+    <div class="section-tab active" onclick="switchCat('fuel',this)">⛽ Fuel</div>
+    <div class="section-tab" onclick="switchCat('seeds',this)">🌱 Seeds & Fertilizer</div>
+    <div class="section-tab" onclick="switchCat('warehouse',this)">🏭 Warehouse</div>
+    <div class="section-tab" onclick="switchCat('tractors',this)">🚜 Tractors & Machinery</div>
+  </div>
+
+  <!-- Category Description -->
+  <div id="catDesc" class="card" style="padding:12px 16px;margin-bottom:16px;background:var(--accent-light);border-color:var(--accent)">
+    <span id="catDescText" style="font-size:14px;color:var(--accent);font-weight:700">⛽ Track your Diesel and Petrol stock levels</span>
+  </div>
+
+  <!-- Inventory Grid -->
+  <div class="inv-grid" id="inventoryGrid"></div>
+
+  <!-- Empty State -->
+  <div id="invEmpty" class="empty-state" style="display:none">
+    <div style="font-size:48px" id="invEmptyIcon">📦</div>
+    <p>No items in this category. Click "Add Item" to add one.</p>
+  </div>
+</main>
+
+<!-- Add Item Modal -->
+<div class="modal-overlay" id="addModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-title">➕ Add New Item</div>
+      <button class="modal-close" onclick="closeAddModal()">✕</button>
+    </div>
+    <div class="form-group">
+      <label class="form-label">📦 Category</label>
+      <select id="newCat">
+        <option value="fuel">⛽ Fuel</option>
+        <option value="seeds">🌱 Seeds & Fertilizer</option>
+        <option value="warehouse">🏭 Warehouse</option>
+        <option value="tractors">🚜 Tractors & Machinery</option>
+      </select>
+    </div>
+    <div class="form-group"><label class="form-label">📝 Item Name *</label><input id="newName" placeholder="e.g. Diesel, Wheat Seeds, Tractor A"/></div>
+    <div class="input-row">
+      <div class="form-group"><label class="form-label">📏 Unit</label><input id="newUnit" placeholder="e.g. Liters, KG, Bags"/></div>
+      <div class="form-group"><label class="form-label">🔢 Starting Quantity</label><input type="number" id="newQty" placeholder="e.g. 100" min="0"/></div>
+    </div>
+    <button class="btn btn-full mt" onclick="submitAddItem()">✅ Add Item</button>
+  </div>
+</div>
+
+<!-- Update Quantity Modal -->
+<div class="modal-overlay" id="updateModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-title" id="updateModalTitle">📦 Update Item</div>
+      <button class="modal-close" onclick="closeUpdateModal()">✕</button>
+    </div>
+    <div id="updateCurrentInfo" style="background:var(--accent-light);padding:12px;border-radius:8px;margin-bottom:16px;font-size:14px"></div>
+    <div class="form-group">
+      <label class="form-label">⚙️ Action</label>
+      <select id="updateAction">
+        <option value="set">📌 Set exact quantity</option>
+        <option value="add">➕ Add to stock</option>
+        <option value="subtract">➖ Remove from stock</option>
+      </select>
+    </div>
+    <div class="form-group"><label class="form-label">🔢 Quantity</label><input type="number" id="updateQty" placeholder="Enter quantity" min="0"/></div>
+    <div class="form-group" id="tractorInfoGroup" style="display:none">
+      <label class="form-label">📋 Tractor / Machinery Info</label>
+      <input id="updateName" placeholder="Name (e.g. Tractor A)"/>
+      <input id="updateModel" placeholder="Model (e.g. Massey 385)" style="margin-top:8px"/>
+      <input id="updateCondition" placeholder="Condition (Good/Fair/Needs Repair)" style="margin-top:8px"/>
+      <input id="updateLastService" type="date" style="margin-top:8px"/>
+    </div>
+    <button class="btn btn-full mt" onclick="submitUpdate()">💾 Save Changes</button>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+<script src="js/main.js"></script>
+<script>
+  let currentCat = 'fuel';
+  let updateTarget = null; // { category, id }
+
+  const catMeta = {
+    fuel:      { icon:'⛽', label:'Fuel',                desc:'⛽ Track your Diesel and Petrol stock levels', emptyIcon:'⛽' },
+    seeds:     { icon:'🌱', label:'Seeds & Fertilizer',  desc:'🌱 Track seeds, fertilizer and pesticide stock', emptyIcon:'🌱' },
+    warehouse: { icon:'🏭', label:'Warehouse',            desc:'🏭 Track grains and produce stored in warehouse', emptyIcon:'🏭' },
+    tractors:  { icon:'🚜', label:'Tractors & Machinery', desc:'🚜 Track tractors, machinery and their condition', emptyIcon:'🚜' }
+  };
+
+  function showToast(msg, type='success') {
+    const t=document.getElementById('toast'); t.textContent=msg; t.className=`toast ${type} show`;
+    setTimeout(()=>t.classList.remove('show'),3000);
+  }
+
+  function switchCat(cat, el) {
+    currentCat = cat;
+    document.querySelectorAll('.section-tab').forEach(t=>t.classList.remove('active'));
+    el.classList.add('active');
+    document.getElementById('catDescText').textContent = catMeta[cat].desc;
+    document.getElementById('newCat').value = cat;
+    renderInventory();
+  }
+
+  function renderInventory() {
+    const inv = BH.getInventory();
+    const items = inv[currentCat] || [];
+    const grid  = document.getElementById('inventoryGrid');
+    const empty = document.getElementById('invEmpty');
+    grid.innerHTML = '';
+    if (items.length === 0) {
+      empty.style.display = 'block';
+      document.getElementById('invEmptyIcon').textContent = catMeta[currentCat].emptyIcon;
+      return;
+    }
+    empty.style.display = 'none';
+    items.forEach(item => {
+      const isTractor = currentCat === 'tractors';
+      const div = document.createElement('div');
+      div.className = 'inv-item';
+      if (isTractor) {
+        div.innerHTML = `
+          <div class="inv-item-icon">🚜</div>
+          <div class="inv-item-name">${item.name}</div>
+          ${item.model?`<div style="font-size:12px;color:var(--muted)">📋 ${item.model}</div>`:''}
+          <div style="margin:8px 0">
+            <span class="badge ${item.condition&&item.condition.toLowerCase().includes('repair')?'badge-red':item.condition&&item.condition.toLowerCase().includes('fair')?'badge-orange':'badge-green'}">${item.condition||'Not set'}</span>
+          </div>
+          ${item.lastService?`<div class="inv-item-date">🔧 Last service: ${item.lastService}</div>`:''}
+          <div class="inv-item-date">Updated: ${item.lastUpdated}</div>
+          <div class="inv-item-actions">
+            <button class="btn-ghost-sm" onclick="openUpdateModal('${currentCat}',${item.id})">✏️ Edit</button>
+            <button class="btn btn-sm btn-danger" onclick="if(confirm('Remove this item?')){ BH.deleteInventoryItem('${currentCat}',${item.id}); renderInventory(); showToast('Item removed'); }">🗑</button>
+          </div>`;
+      } else {
+        const low = item.quantity <= 10;
+        div.innerHTML = `
+          <div class="inv-item-icon">${catMeta[currentCat].icon}</div>
+          <div class="inv-item-name">${item.name}</div>
+          <div class="inv-item-qty" style="color:${low&&item.quantity>0?'#e65100':item.quantity===0?'#d32f2f':'var(--accent)'}">${item.quantity}</div>
+          <div class="inv-item-unit">${item.unit}</div>
+          ${item.quantity===0?'<span class="badge badge-red">❌ Out of Stock</span>':low?'<span class="badge badge-orange">⚠️ Low Stock</span>':'<span class="badge badge-green">✅ In Stock</span>'}
+          <div class="inv-item-date">Updated: ${item.lastUpdated}</div>
+          <div class="inv-item-actions">
+            <button class="btn-ghost-sm" onclick="openUpdateModal('${currentCat}',${item.id})">📝 Update</button>
+            <button class="btn btn-sm btn-danger" onclick="if(confirm('Remove this item?')){ BH.deleteInventoryItem('${currentCat}',${item.id}); renderInventory(); showToast('Item removed'); }">🗑</button>
+          </div>`;
+      }
+      grid.appendChild(div);
+    });
+  }
+
+  function openAddModal() { document.getElementById('addModal').classList.add('open'); document.getElementById('newName').focus(); }
+  function closeAddModal() { document.getElementById('addModal').classList.remove('open'); }
+
+  function submitAddItem() {
+    const cat  = document.getElementById('newCat').value;
+    const name = document.getElementById('newName').value.trim();
+    const unit = document.getElementById('newUnit').value.trim() || 'Units';
+    const qty  = document.getElementById('newQty').value;
+    if (!name) return showToast('⚠️ Item name is required', 'error');
+    const res = BH.addInventoryItem(cat, { name, unit, quantity: qty });
+    if (res.ok) {
+      showToast('✅ Item added!'); closeAddModal();
+      document.getElementById('newName').value=''; document.getElementById('newUnit').value=''; document.getElementById('newQty').value='';
+      if (cat === currentCat) renderInventory();
+      else { switchCat(cat, document.querySelector(`.section-tab:nth-child(${['fuel','seeds','warehouse','tractors'].indexOf(cat)+1})`)||document.querySelectorAll('.section-tab')[0]); }
+    } else showToast('❌ '+res.msg, 'error');
+  }
+
+  function openUpdateModal(category, id) {
+    updateTarget = { category, id };
+    const inv  = BH.getInventory();
+    const item = (inv[category]||[]).find(x=>x.id===id); if(!item) return;
+    const isTractor = category === 'tractors';
+    document.getElementById('updateModalTitle').textContent = '📝 Update: ' + item.name;
+    document.getElementById('updateCurrentInfo').innerHTML = isTractor
+      ? `<strong>${item.name}</strong> — Condition: ${item.condition||'Not set'}`
+      : `<strong>${item.name}</strong> — Current stock: <strong>${item.quantity} ${item.unit}</strong>`;
+    document.getElementById('tractorInfoGroup').style.display = isTractor ? 'block' : 'none';
+    document.getElementById('updateAction').parentElement.style.display = isTractor ? 'none' : 'block';
+    document.getElementById('updateQty').parentElement.style.display   = isTractor ? 'none' : 'block';
+    if (isTractor) {
+      document.getElementById('updateName').value      = item.name      || '';
+      document.getElementById('updateModel').value     = item.model     || '';
+      document.getElementById('updateCondition').value = item.condition || '';
+      document.getElementById('updateLastService').value = item.lastService || '';
+    }
+    document.getElementById('updateModal').classList.add('open');
+  }
+
+  function closeUpdateModal() { document.getElementById('updateModal').classList.remove('open'); updateTarget=null; }
+
+  function submitUpdate() {
+    if (!updateTarget) return;
+    const { category, id } = updateTarget;
+    const isTractor = category === 'tractors';
+    if (isTractor) {
+      const name      = document.getElementById('updateName').value.trim();
+      const model     = document.getElementById('updateModel').value.trim();
+      const condition = document.getElementById('updateCondition').value.trim();
+      const lastService = document.getElementById('updateLastService').value;
+      if (!name) return showToast('⚠️ Name required', 'error');
+      BH.updateInventoryItem(category, id, { name, model, condition, lastService });
+    } else {
+      const action = document.getElementById('updateAction').value;
+      const qty    = Number(document.getElementById('updateQty').value);
+      if (isNaN(qty) || qty < 0) return showToast('⚠️ Enter valid quantity', 'error');
+      const inv  = BH.getInventory();
+      const item = (inv[category]||[]).find(x=>x.id===id);
+      let newQty = item.quantity;
+      if (action==='set') newQty = qty;
+      else if (action==='add') newQty = Number(item.quantity) + qty;
+      else if (action==='subtract') { newQty = Number(item.quantity) - qty; if(newQty<0) return showToast('⚠️ Cannot go below 0', 'error'); }
+      BH.updateInventoryItem(category, id, { quantity: newQty });
+    }
+    showToast('✅ Updated!'); closeUpdateModal(); renderInventory();
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    if (!BH.isLoggedIn()) { location.href='index.html'; return; }
+    BH.init();
+    renderInventory();
+  });
+
+  document.getElementById('addModal').addEventListener('click',    function(e){ if(e.target===this) closeAddModal(); });
+  document.getElementById('updateModal').addEventListener('click',  function(e){ if(e.target===this) closeUpdateModal(); });
+</script>
+</body>
+</html>

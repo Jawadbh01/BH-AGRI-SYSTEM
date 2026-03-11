@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <title>BH Agriculture — Backup</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <link rel="stylesheet" href="css/style.css"/>
+</head>
+<body>
+<header class="topbar">
+  <a href="index.html" class="logo">
+    <span class="logo-mark">🌾</span>
+    <div class="logo-text"><div class="big">BH AGRICULTURE</div><div class="small">Farm Management</div></div>
+  </a>
+  <div class="menu-toggle" onclick="document.getElementById('mainNav').classList.toggle('open')">☰</div>
+  <nav class="nav" id="mainNav">
+    <a href="index.html">📊 Dashboard</a>
+    <a href="farmers.html">👨‍🌾 Farmers</a>
+    <a href="expenses.html">💸 Expenses</a>
+    <a href="loans.html">🏦 Loans</a>
+    <a href="inventory.html">📦 Inventory</a>
+    <a href="report.html" class="active">💾 Backup</a>
+    <button class="btn-ghost" onclick="BH.toggleTheme()">🌓</button>
+    <button class="btn-ghost" onclick="if(confirm('Logout?')){BH.logout();location.href='index.html'}">🚪</button>
+  </nav>
+</header>
+
+<main class="container">
+  <div class="page-header">
+    <div class="page-title">💾 Backup & Restore</div>
+  </div>
+
+  <!-- Data Summary -->
+  <div class="stats-grid" id="dataSummary"></div>
+
+  <!-- Export -->
+  <div class="card">
+    <div class="card-title">📤 Export Data (Backup)</div>
+    <p style="color:var(--muted);font-size:14px;margin-bottom:16px">Save all your data to a file on your phone or computer. Do this regularly so you never lose your data!</p>
+    <div class="row">
+      <button class="btn" onclick="exportData()">📥 Download Backup File</button>
+      <button class="btn" style="background:#0277bd" onclick="Report.printOverall()">🖨 Print Overall Report</button>
+    </div>
+  </div>
+
+  <!-- Import -->
+  <div class="card">
+    <div class="card-title">📥 Import Data (Restore)</div>
+    <p style="color:var(--muted);font-size:14px;margin-bottom:16px">Upload a backup file to restore your data. ⚠️ This will replace your current data.</p>
+    <label class="btn btn-outline" style="cursor:pointer;display:inline-flex;align-items:center;gap:6px">
+      📂 Choose Backup File
+      <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(this)"/>
+    </label>
+  </div>
+
+  <!-- Danger Zone -->
+  <div class="card" style="border-color:#ffcdd2">
+    <div class="card-title" style="color:#d32f2f">⚠️ Danger Zone</div>
+    <p style="color:var(--muted);font-size:14px;margin-bottom:16px">This will permanently delete ALL data including farmers, expenses, loans and inventory. Export a backup first!</p>
+    <button class="btn btn-danger" onclick="resetAll()">🗑 Reset All Data (Cannot be Undone)</button>
+  </div>
+</main>
+
+<div id="toast" class="toast"></div>
+<script src="js/main.js"></script>
+<script>
+  function showToast(msg, type='success') {
+    const t=document.getElementById('toast'); t.textContent=msg; t.className=`toast ${type} show`;
+    setTimeout(()=>t.classList.remove('show'),3000);
+  }
+
+  function renderSummary() {
+    const d=BH.getData();
+    const farmers  = (d.farmers||[]).length;
+    const expenses = (d.expenses||[]).length;
+    const loans    = (d.loans||[]).length;
+    const invItems = Object.values(d.inventory||{}).reduce((s,arr)=>s+(arr||[]).length,0);
+    document.getElementById('dataSummary').innerHTML=`
+      <div class="stat-card"><div class="stat-icon">👨‍🌾</div><div class="stat-label">Farmers</div><div class="stat-value">${farmers}</div></div>
+      <div class="stat-card"><div class="stat-icon">💸</div><div class="stat-label">Expense Records</div><div class="stat-value">${expenses}</div></div>
+      <div class="stat-card"><div class="stat-icon">🏦</div><div class="stat-label">Loan Records</div><div class="stat-value">${loans}</div></div>
+      <div class="stat-card"><div class="stat-icon">📦</div><div class="stat-label">Inventory Items</div><div class="stat-value">${invItems}</div></div>`;
+  }
+
+  function exportData() {
+    const data = BH.getData();
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type:'application/json' });
+    const url  = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `bh_agri_backup_${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('✅ Backup downloaded!');
+  }
+
+  function importData(input) {
+    const file = input.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const json = JSON.parse(e.target.result);
+        if (!json.farmers && !json.users) return showToast('❌ Invalid backup file', 'error');
+        if (!confirm('⚠️ This will replace ALL current data with the backup. Continue?')) { input.value=''; return; }
+        BH.saveData(json);
+        showToast('✅ Data restored successfully! Reloading...');
+        setTimeout(()=>location.href='index.html', 1500);
+      } catch(err) { showToast('❌ Invalid or corrupted file', 'error'); }
+    };
+    reader.readAsText(file);
+  }
+
+  function resetAll() {
+    if (!confirm('⚠️ Are you absolutely sure? ALL data will be permanently deleted!')) return;
+    if (!confirm('Last warning: This CANNOT be undone. Delete everything?')) return;
+    BH.resetData();
+    showToast('Data reset. Logging out...');
+    setTimeout(()=>{ BH.logout(); location.href='index.html'; }, 1500);
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    if (!BH.isLoggedIn()) { location.href='index.html'; return; }
+    BH.init();
+    renderSummary();
+  });
+</script>
+</body>
+</html>

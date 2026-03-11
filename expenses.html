@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <title>BH Agriculture — Expenses</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <link rel="stylesheet" href="css/style.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+<header class="topbar">
+  <a href="index.html" class="logo">
+    <span class="logo-mark">🌾</span>
+    <div class="logo-text"><div class="big">BH AGRICULTURE</div><div class="small">Farm Management</div></div>
+  </a>
+  <div class="menu-toggle" onclick="document.getElementById('mainNav').classList.toggle('open')">☰</div>
+  <nav class="nav" id="mainNav">
+    <a href="index.html">📊 Dashboard</a>
+    <a href="farmers.html">👨‍🌾 Farmers</a>
+    <a href="expenses.html" class="active">💸 Expenses</a>
+    <a href="loans.html">🏦 Loans</a>
+    <a href="inventory.html">📦 Inventory</a>
+    <a href="report.html">💾 Backup</a>
+    <button class="btn-ghost" onclick="BH.toggleTheme()">🌓</button>
+    <button class="btn-ghost" onclick="if(confirm('Logout?')){BH.logout();location.href='index.html'}">🚪</button>
+  </nav>
+</header>
+
+<main class="container">
+  <div class="page-header">
+    <div class="page-title">💸 Expenses</div>
+  </div>
+
+  <!-- Add Expense -->
+  <div class="card">
+    <div class="card-title">➕ Add New Expense</div>
+    <form id="addExpenseForm">
+      <div class="input-row">
+        <div class="form-group">
+          <label class="form-label">👨‍🌾 Farmer *</label>
+          <select id="expFarmer" required></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">📅 Date *</label>
+          <input type="date" id="expDate" required/>
+        </div>
+      </div>
+      <div class="input-row">
+        <div class="form-group">
+          <label class="form-label">💸 Amount (PKR) *</label>
+          <input type="number" id="expAmount" placeholder="e.g. 5000" min="1" required/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">🏷 Category *</label>
+          <input id="expCat" placeholder="e.g. Fuel, Labor, Fertilizer" required list="catSuggestions"/>
+          <datalist id="catSuggestions">
+            <option value="Fuel"><option value="Labor"><option value="Fertilizer">
+            <option value="Pesticide"><option value="Seeds"><option value="Water"><option value="Transport"><option value="Other">
+          </datalist>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">📝 Note (optional)</label>
+        <input id="expNote" placeholder="Any extra details..."/>
+      </div>
+      <button class="btn" type="submit">➕ Add Expense</button>
+    </form>
+  </div>
+
+  <!-- Summary Stats -->
+  <div class="stats-grid" id="expSummary" style="margin-bottom:20px"></div>
+
+  <!-- Chart -->
+  <div class="card">
+    <div class="card-title">📊 Expenses by Category</div>
+    <div class="chart-card"><canvas id="expenseChart"></canvas></div>
+  </div>
+
+  <!-- All Expenses Table -->
+  <div class="card">
+    <div class="page-header">
+      <div class="card-title">📋 All Expenses</div>
+      <div class="search-bar">
+        <input id="expSearch" placeholder="Search by farmer or category..." oninput="renderExpTable(this.value)" style="width:220px"/>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>👨‍🌾 Farmer</th><th>🏷 Category</th><th>📝 Note</th><th>💸 Amount</th><th>📅 Date</th><th>⚙️</th></tr>
+        </thead>
+        <tbody id="expTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+</main>
+
+<div id="toast" class="toast"></div>
+<script src="js/main.js"></script>
+<script>
+  function showToast(msg, type='success') {
+    const t=document.getElementById('toast'); t.textContent=msg; t.className=`toast ${type} show`;
+    setTimeout(()=>t.classList.remove('show'),3000);
+  }
+
+  function renderExpSummary() {
+    const d=BH.getData(); const expenses=d.expenses||[];
+    const total=expenses.reduce((s,e)=>s+Number(e.amount||0),0);
+    const thisMonth=expenses.filter(e=>e.date&&e.date.startsWith(new Date().toISOString().slice(0,7))).reduce((s,e)=>s+Number(e.amount||0),0);
+    const cats=[...new Set(expenses.map(e=>e.category))].length;
+    document.getElementById('expSummary').innerHTML=`
+      <div class="stat-card"><div class="stat-icon">💸</div><div class="stat-label">Total Expenses</div><div class="stat-value">${BH.formatPKR(total)}</div></div>
+      <div class="stat-card"><div class="stat-icon">📅</div><div class="stat-label">This Month</div><div class="stat-value">${BH.formatPKR(thisMonth)}</div></div>
+      <div class="stat-card"><div class="stat-icon">🏷</div><div class="stat-label">Categories</div><div class="stat-value">${cats}</div></div>
+      <div class="stat-card"><div class="stat-icon">📝</div><div class="stat-label">Total Records</div><div class="stat-value">${expenses.length}</div></div>`;
+  }
+
+  function renderExpChart() {
+    const d=BH.getData(); const expenses=d.expenses||[];
+    const grouped={};
+    expenses.forEach(e=>{ grouped[e.category]=(grouped[e.category]||0)+Number(e.amount||0); });
+    const labels=Object.keys(grouped); const data=labels.map(l=>grouped[l]);
+    const ctx=document.getElementById('expenseChart'); if(!ctx) return;
+    if(window._expChart) window._expChart.destroy();
+    if(labels.length===0){ ctx.parentElement.innerHTML='<p style="text-align:center;color:#999;padding:20px">No expense data yet</p>'; return; }
+    window._expChart=new Chart(ctx.getContext('2d'),{type:'doughnut',data:{labels,datasets:[{data,backgroundColor:['#66bb6a','#42a5f5','#ffa726','#ef5350','#ab47bc','#26c6da','#d4e157','#ff7043']}]},options:{responsive:true,plugins:{legend:{position:'bottom'}}}});
+  }
+
+  function renderExpTable(filter='') {
+    const d=BH.getData(); const expenses=d.expenses||[]; const farmers=d.farmers||[];
+    const tbody=document.getElementById('expTableBody'); tbody.innerHTML='';
+    const filtered=expenses.filter(e=>{
+      if(!filter) return true; const q=filter.toLowerCase();
+      const fname=(farmers.find(f=>f.id===e.farmerId)||{}).name||'';
+      return fname.toLowerCase().includes(q)||e.category.toLowerCase().includes(q);
+    }).slice().reverse();
+    if(filtered.length===0){ tbody.innerHTML='<tr><td colspan="6" style="text-align:center;color:#999;padding:20px">No expenses found</td></tr>'; return; }
+    filtered.forEach(e=>{
+      const fname=(farmers.find(f=>f.id===e.farmerId)||{}).name||'Unknown';
+      const tr=document.createElement('tr');
+      tr.innerHTML=`<td><strong>${fname}</strong></td><td><span class="badge badge-orange">${e.category}</span></td><td>${e.note||'-'}</td><td style="font-weight:700;color:#c62828">${BH.formatPKR(e.amount)}</td><td>${e.date}</td><td><button class="btn btn-sm btn-danger" onclick="if(confirm('Delete this expense?')){ BH.deleteExpense(${e.id}); refresh(); showToast('Expense deleted'); }">🗑</button></td>`;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function refresh() { fillFarmerSelect('expFarmer'); renderExpTable(document.getElementById('expSearch').value); renderExpChart(); renderExpSummary(); }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    if (!BH.isLoggedIn()) { location.href='index.html'; return; }
+    BH.init();
+    document.getElementById('expDate').value = BH.today();
+    refresh();
+
+    document.getElementById('addExpenseForm').addEventListener('submit', e => {
+      e.preventDefault();
+      const farmerId = document.getElementById('expFarmer').value;
+      const date     = document.getElementById('expDate').value;
+      const amount   = document.getElementById('expAmount').value;
+      const category = document.getElementById('expCat').value.trim() || 'Other';
+      const note     = document.getElementById('expNote').value.trim();
+      if (!farmerId) return showToast('⚠️ Please select a farmer', 'error');
+      const res = BH.addExpense({ farmerId, category, amount, note, date });
+      if (res.ok) { showToast('✅ Expense added!'); e.target.reset(); document.getElementById('expDate').value=BH.today(); refresh(); }
+      else showToast('❌ '+res.msg, 'error');
+    });
+  });
+</script>
+</body>
+</html>

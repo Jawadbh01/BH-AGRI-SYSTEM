@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <title>BH Agriculture — Farmers</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <link rel="stylesheet" href="css/style.css"/>
+</head>
+<body>
+<header class="topbar">
+  <a href="index.html" class="logo">
+    <span class="logo-mark">🌾</span>
+    <div class="logo-text"><div class="big">BH AGRICULTURE</div><div class="small">Farm Management</div></div>
+  </a>
+  <div class="menu-toggle" onclick="document.getElementById('mainNav').classList.toggle('open')">☰</div>
+  <nav class="nav" id="mainNav">
+    <a href="index.html">📊 Dashboard</a>
+    <a href="farmers.html" class="active">👨‍🌾 Farmers</a>
+    <a href="expenses.html">💸 Expenses</a>
+    <a href="loans.html">🏦 Loans</a>
+    <a href="inventory.html">📦 Inventory</a>
+    <a href="report.html">💾 Backup</a>
+    <button class="btn-ghost" onclick="BH.toggleTheme()">🌓</button>
+    <button class="btn-ghost" onclick="if(confirm('Logout?')){BH.logout();location.href='index.html'}">🚪</button>
+  </nav>
+</header>
+
+<main class="container">
+  <div class="page-header">
+    <div class="page-title">👨‍🌾 Farmers</div>
+    <button class="btn" onclick="openModal()">➕ Add New Farmer</button>
+  </div>
+
+  <!-- Search -->
+  <div class="card" style="padding:14px">
+    <div class="search-bar">
+      <input id="searchInput" placeholder="Search by name or crop..." oninput="renderFarmersTable(this.value)" style="max-width:360px"/>
+    </div>
+  </div>
+
+  <!-- Farmers Table -->
+  <div class="card">
+    <div class="card-title">📋 All Farmers</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>👤 Name</th>
+            <th>🌾 Crop</th>
+            <th>📐 Area</th>
+            <th>💰 Income / 💸 Expense</th>
+            <th>⚙️ Actions</th>
+          </tr>
+        </thead>
+        <tbody id="farmerTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+</main>
+
+<!-- Add Farmer Modal -->
+<div class="modal-overlay" id="addModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-title">➕ Add New Farmer</div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="form-group">
+      <label class="form-label">👤 Full Name *</label>
+      <input id="f_name" placeholder="e.g. Ahmed Khan"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">🌾 Crop Type</label>
+      <input id="f_crop" placeholder="e.g. Wheat, Rice, Cotton"/>
+    </div>
+    <div class="input-row">
+      <div class="form-group">
+        <label class="form-label">📐 Area</label>
+        <input id="f_area" placeholder="e.g. 5 acres"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">📞 Phone</label>
+        <input id="f_phone" placeholder="e.g. 0300-1234567"/>
+      </div>
+    </div>
+    <div class="row mt">
+      <button class="btn btn-full" onclick="submitFarmer()">✅ Add Farmer</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+<script src="js/main.js"></script>
+<script>
+  function showToast(msg, type='success') {
+    const t=document.getElementById('toast'); t.textContent=msg; t.className=`toast ${type} show`;
+    setTimeout(()=>t.classList.remove('show'),3000);
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    if (!BH.isLoggedIn()) { location.href='index.html'; return; }
+    BH.init();
+    renderFarmersTable();
+    // Redefine renderFarmersTable to use farmerTableBody id
+    window._origRenderFarmersTable = window.renderFarmersTable;
+    window.renderFarmersTable = function(filter='') {
+      const tbody = document.getElementById('farmerTableBody'); if(!tbody) return;
+      const d=BH.getData(); const expenses=d.expenses||[];
+      const farmers=(d.farmers||[]).filter(f=>!filter||(`${f.name} ${f.crop}`).toLowerCase().includes(filter.toLowerCase()));
+      tbody.innerHTML='';
+      if(farmers.length===0){ tbody.innerHTML='<tr><td colspan="5" style="text-align:center;padding:24px;color:#999">No farmers yet. Click "Add New Farmer" to get started!</td></tr>'; return; }
+      farmers.forEach(f=>{
+        const inc=(f.incomes||[]).reduce((s,i)=>s+Number(i.amount||0),0);
+        const exp=expenses.filter(e=>e.farmerId===f.id).reduce((s,e)=>s+Number(e.amount||0),0);
+        const tr=document.createElement('tr');
+        tr.innerHTML=`<td><strong>${f.name}</strong>${f.phone?'<br><small style="color:#888">📞 '+f.phone+'</small>':''}</td><td>${f.crop||'<span style="color:#ccc">-</span>'}</td><td>${f.area||'<span style="color:#ccc">-</span>'}</td><td><span style="color:#2e7d32;font-weight:700">${BH.formatPKR(inc)}</span><br><span style="color:#c62828;font-weight:700">${BH.formatPKR(exp)}</span></td><td><div class="row" style="gap:4px"><button class="btn btn-sm" onclick="window.location='farmer.html?id=${f.id}'">👁 View</button><button class="btn btn-sm btn-danger" onclick="if(confirm('Delete ${f.name} and all records?')){ BH.deleteFarmer(${f.id}); renderFarmersTable(); showToast('Farmer deleted'); }">🗑</button></div></td>`;
+        tbody.appendChild(tr);
+      });
+    };
+    renderFarmersTable();
+  });
+
+  function openModal()  { document.getElementById('addModal').classList.add('open'); document.getElementById('f_name').focus(); }
+  function closeModal() { document.getElementById('addModal').classList.remove('open'); clearForm(); }
+  function clearForm()  { ['f_name','f_crop','f_area','f_phone'].forEach(id=>document.getElementById(id).value=''); }
+
+  function submitFarmer() {
+    const name  = document.getElementById('f_name').value.trim();
+    const crop  = document.getElementById('f_crop').value.trim();
+    const area  = document.getElementById('f_area').value.trim();
+    const phone = document.getElementById('f_phone').value.trim();
+    if (!name) return showToast('⚠️ Farmer name is required!', 'error');
+    const res = BH.addFarmer({ name, crop, area, phone });
+    if (res.ok) { showToast('✅ Farmer added successfully!'); closeModal(); renderFarmersTable(); }
+    else showToast('❌ ' + res.msg, 'error');
+  }
+
+  // Close modal on overlay click
+  document.getElementById('addModal').addEventListener('click', function(e){ if(e.target===this) closeModal(); });
+</script>
+</body>
+</html>

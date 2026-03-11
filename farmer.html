@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <title>BH Agriculture — Farmer Detail</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <link rel="stylesheet" href="css/style.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+<header class="topbar">
+  <a href="index.html" class="logo">
+    <span class="logo-mark">🌾</span>
+    <div class="logo-text"><div class="big">BH AGRICULTURE</div><div class="small">Farm Management</div></div>
+  </a>
+  <div class="menu-toggle" onclick="document.getElementById('mainNav').classList.toggle('open')">☰</div>
+  <nav class="nav" id="mainNav">
+    <a href="index.html">📊 Dashboard</a>
+    <a href="farmers.html" class="active">👨‍🌾 Farmers</a>
+    <a href="expenses.html">💸 Expenses</a>
+    <a href="loans.html">🏦 Loans</a>
+    <a href="inventory.html">📦 Inventory</a>
+    <a href="report.html">💾 Backup</a>
+    <button class="btn-ghost" onclick="BH.toggleTheme()">🌓</button>
+    <button class="btn-ghost" onclick="if(confirm('Logout?')){BH.logout();location.href='index.html'}">🚪</button>
+  </nav>
+</header>
+
+<main class="container" id="pageContent">
+  <p style="text-align:center;padding:40px;color:#999">Loading farmer...</p>
+</main>
+
+<div id="toast" class="toast"></div>
+
+<!-- Edit Farmer Modal -->
+<div class="modal-overlay" id="editModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-title">✏️ Edit Farmer</div>
+      <button class="modal-close" onclick="closeEditModal()">✕</button>
+    </div>
+    <div class="form-group"><label class="form-label">👤 Full Name</label><input id="edit_name" placeholder="Name"/></div>
+    <div class="form-group"><label class="form-label">🌾 Crop</label><input id="edit_crop" placeholder="Crop"/></div>
+    <div class="input-row">
+      <div class="form-group"><label class="form-label">📐 Area</label><input id="edit_area" placeholder="Area"/></div>
+      <div class="form-group"><label class="form-label">📞 Phone</label><input id="edit_phone" placeholder="Phone"/></div>
+    </div>
+    <button class="btn btn-full mt" onclick="saveEdit()">💾 Save Changes</button>
+  </div>
+</div>
+
+<script src="js/main.js"></script>
+<script>
+  let farmerId = null;
+
+  function showToast(msg, type='success') {
+    const t=document.getElementById('toast'); t.textContent=msg; t.className=`toast ${type} show`;
+    setTimeout(()=>t.classList.remove('show'),3000);
+  }
+
+  function closeEditModal() { document.getElementById('editModal').classList.remove('open'); }
+
+  function openEditModal(f) {
+    document.getElementById('edit_name').value  = f.name  || '';
+    document.getElementById('edit_crop').value  = f.crop  || '';
+    document.getElementById('edit_area').value  = f.area  || '';
+    document.getElementById('edit_phone').value = f.phone || '';
+    document.getElementById('editModal').classList.add('open');
+  }
+
+  function saveEdit() {
+    const name  = document.getElementById('edit_name').value.trim();
+    const crop  = document.getElementById('edit_crop').value.trim();
+    const area  = document.getElementById('edit_area').value.trim();
+    const phone = document.getElementById('edit_phone').value.trim();
+    if (!name) return showToast('Name is required', 'error');
+    BH.updateFarmer(farmerId, { name, crop, area, phone });
+    closeEditModal();
+    showToast('✅ Farmer updated!');
+    renderPage();
+  }
+
+  function renderPage() {
+    const f = BH.getFarmer(farmerId);
+    if (!f) { alert('Farmer not found'); location.href='farmers.html'; return; }
+
+    const expenses    = BH.getExpensesForFarmer(farmerId);
+    const loans       = BH.getLoansForFarmer(farmerId);
+    const incomeTotal = (f.incomes||[]).reduce((s,i)=>s+Number(i.amount||0),0);
+    const expTotal    = expenses.reduce((s,e)=>s+Number(e.amount||0),0);
+    const profit      = incomeTotal - expTotal;
+    const loanTotal   = loans.reduce((s,l)=>s+Number(l.amount||0),0);
+    const loanPaid    = loans.reduce((s,l)=>s+Number(l.paid||0),0);
+    const loanPending = loanTotal - loanPaid;
+
+    document.title = f.name + ' — BH Agriculture';
+
+    document.getElementById('pageContent').innerHTML = `
+      <!-- Profile -->
+      <div class="card">
+        <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+          <div style="width:64px;height:64px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:900;flex-shrink:0">${f.name.charAt(0).toUpperCase()}</div>
+          <div style="flex:1">
+            <h1 style="font-size:22px;font-weight:900;margin-bottom:4px">${f.name}</h1>
+            <div style="color:var(--muted);font-size:14px">
+              ${f.crop?'🌾 '+f.crop+'&nbsp;&nbsp;':''}${f.area?'📐 '+f.area+'&nbsp;&nbsp;':''}${f.phone?'📞 '+f.phone:''}
+            </div>
+          </div>
+          <div class="row">
+            <button class="btn btn-sm btn-outline" onclick="openEditModal(BH.getFarmer(${f.id}))">✏️ Edit</button>
+            <button class="btn btn-sm" onclick="Report.printFarmer(${f.id})">🖨 Print</button>
+            <button class="btn btn-sm btn-danger" onclick="if(confirm('Delete ${f.name} and ALL records?')){ BH.deleteFarmer(${f.id}); location.href='farmers.html'; }">🗑 Delete</button>
+          </div>
+        </div>
+        <!-- Summary Stats -->
+        <div class="stats-grid" style="margin-top:18px;margin-bottom:0">
+          <div class="stat-card"><div class="stat-icon">💰</div><div class="stat-label">Income</div><div class="stat-value" style="font-size:1.1rem">${BH.formatPKR(incomeTotal)}</div></div>
+          <div class="stat-card"><div class="stat-icon">💸</div><div class="stat-label">Expense</div><div class="stat-value" style="font-size:1.1rem;color:#c62828">${BH.formatPKR(expTotal)}</div></div>
+          <div class="stat-card"><div class="stat-icon">📈</div><div class="stat-label">Profit</div><div class="stat-value" style="font-size:1.1rem;color:${profit>=0?'var(--accent)':'#c62828'}">${BH.formatPKR(profit)}</div></div>
+          <div class="stat-card"><div class="stat-icon">🏦</div><div class="stat-label">Loan Pending</div><div class="stat-value" style="font-size:1.1rem;color:${loanPending>0?'#e65100':'var(--accent)'}">${BH.formatPKR(loanPending)}</div></div>
+        </div>
+      </div>
+
+      <!-- Income Section -->
+      <div class="card">
+        <div class="card-title">💰 Income Records</div>
+        <form id="addIncomeForm">
+          <div class="input-row">
+            <div class="form-group"><label class="form-label">📅 Date</label><input type="date" id="incDate" value="${BH.today()}"/></div>
+            <div class="form-group"><label class="form-label">💰 Amount (PKR)</label><input type="number" id="incAmount" placeholder="e.g. 50000" min="1"/></div>
+            <div class="form-group"><label class="form-label">📝 Note</label><input id="incNote" placeholder="e.g. Wheat sale"/></div>
+          </div>
+          <button class="btn" type="submit">➕ Add Income</button>
+        </form>
+        <div class="divider"></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>📅 Date</th><th>📝 Note</th><th>💰 Amount</th><th>⚙️</th></tr></thead>
+            <tbody id="incomeTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Expense Section -->
+      <div class="card">
+        <div class="card-title">💸 Expense Records</div>
+        <form id="addExpenseForm">
+          <div class="input-row">
+            <div class="form-group"><label class="form-label">📅 Date</label><input type="date" id="expDate" value="${BH.today()}"/></div>
+            <div class="form-group"><label class="form-label">💸 Amount (PKR)</label><input type="number" id="expAmount" placeholder="e.g. 5000" min="1"/></div>
+            <div class="form-group"><label class="form-label">🏷 Category</label><input id="expCat" placeholder="e.g. Fuel, Labor, Fertilizer"/></div>
+            <div class="form-group"><label class="form-label">📝 Note</label><input id="expNote" placeholder="Optional note"/></div>
+          </div>
+          <button class="btn" type="submit">➕ Add Expense</button>
+        </form>
+        <div class="divider"></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>📅 Date</th><th>🏷 Category</th><th>📝 Note</th><th>💸 Amount</th><th>⚙️</th></tr></thead>
+            <tbody id="expTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Chart -->
+      <div class="card">
+        <div class="card-title">📊 Income vs Expense</div>
+        <div class="chart-card"><canvas id="farmerChart"></canvas></div>
+      </div>
+    `;
+
+    // Render Income Table
+    renderIncomeTable();
+    renderExpTable();
+    renderFarmerChart(incomeTotal, expTotal);
+
+    // Income Form
+    document.getElementById('addIncomeForm').addEventListener('submit', e => {
+      e.preventDefault();
+      const date   = document.getElementById('incDate').value;
+      const amount = document.getElementById('incAmount').value;
+      const note   = document.getElementById('incNote').value;
+      const res = BH.addIncome(farmerId, { amount, note, date });
+      if (res.ok) { showToast('✅ Income added!'); document.getElementById('addIncomeForm').reset(); document.getElementById('incDate').value=BH.today(); renderPage(); }
+      else showToast('❌ '+res.msg, 'error');
+    });
+
+    // Expense Form
+    document.getElementById('addExpenseForm').addEventListener('submit', e => {
+      e.preventDefault();
+      const date   = document.getElementById('expDate').value;
+      const amount = document.getElementById('expAmount').value;
+      const cat    = document.getElementById('expCat').value || 'Other';
+      const note   = document.getElementById('expNote').value;
+      const res = BH.addExpense({ farmerId, category: cat, amount, note, date });
+      if (res.ok) { showToast('✅ Expense added!'); document.getElementById('addExpenseForm').reset(); document.getElementById('expDate').value=BH.today(); renderPage(); }
+      else showToast('❌ '+res.msg, 'error');
+    });
+  }
+
+  function renderIncomeTable() {
+    const f = BH.getFarmer(farmerId); if(!f) return;
+    const tbody = document.getElementById('incomeTableBody');
+    const incomes = f.incomes || [];
+    if(incomes.length===0){ tbody.innerHTML='<tr><td colspan="4" style="text-align:center;color:#999;padding:16px">No income records yet</td></tr>'; return; }
+    tbody.innerHTML='';
+    incomes.slice().reverse().forEach(i=>{
+      const tr=document.createElement('tr');
+      tr.innerHTML=`<td>${i.date}</td><td>${i.note||'-'}</td><td style="font-weight:700;color:#2e7d32">${BH.formatPKR(i.amount)}</td><td><button class="btn btn-sm btn-danger" onclick="if(confirm('Delete this income?')){ BH.deleteIncome(${farmerId},${i.id}); showToast('Deleted'); renderPage(); }">🗑</button></td>`;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function renderExpTable() {
+    const expenses = BH.getExpensesForFarmer(farmerId);
+    const tbody = document.getElementById('expTableBody');
+    if(expenses.length===0){ tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:#999;padding:16px">No expense records yet</td></tr>'; return; }
+    tbody.innerHTML='';
+    expenses.slice().reverse().forEach(e=>{
+      const tr=document.createElement('tr');
+      tr.innerHTML=`<td>${e.date}</td><td><span class="badge badge-orange">${e.category}</span></td><td>${e.note||'-'}</td><td style="font-weight:700;color:#c62828">${BH.formatPKR(e.amount)}</td><td><button class="btn btn-sm btn-danger" onclick="if(confirm('Delete this expense?')){ BH.deleteExpense(${e.id}); showToast('Deleted'); renderPage(); }">🗑</button></td>`;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function renderFarmerChart(inc, exp) {
+    const ctx = document.getElementById('farmerChart'); if(!ctx||!window.Chart) return;
+    if(window._farmerChart) window._farmerChart.destroy();
+    window._farmerChart = new Chart(ctx.getContext('2d'), {
+      type:'bar', data:{ labels:['💰 Income','💸 Expense'], datasets:[{ data:[inc,exp], backgroundColor:['#66bb6a','#ef5350'], borderRadius:8 }] },
+      options:{ responsive:true, plugins:{ legend:{display:false} }, scales:{y:{beginAtZero:true}} }
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    if (!BH.isLoggedIn()) { location.href='index.html'; return; }
+    BH.init();
+    const params = new URLSearchParams(location.search);
+    farmerId = Number(params.get('id'));
+    if (!farmerId) { alert('No farmer selected'); location.href='farmers.html'; return; }
+    renderPage();
+  });
+
+  document.getElementById('editModal').addEventListener('click', function(e){ if(e.target===this) closeEditModal(); });
+</script>
+</body>
+</html>

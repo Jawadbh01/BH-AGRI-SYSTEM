@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <title>BH Agriculture — Loans</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <link rel="stylesheet" href="css/style.css"/>
+</head>
+<body>
+<header class="topbar">
+  <a href="index.html" class="logo">
+    <span class="logo-mark">🌾</span>
+    <div class="logo-text"><div class="big">BH AGRICULTURE</div><div class="small">Farm Management</div></div>
+  </a>
+  <div class="menu-toggle" onclick="document.getElementById('mainNav').classList.toggle('open')">☰</div>
+  <nav class="nav" id="mainNav">
+    <a href="index.html">📊 Dashboard</a>
+    <a href="farmers.html">👨‍🌾 Farmers</a>
+    <a href="expenses.html">💸 Expenses</a>
+    <a href="loans.html" class="active">🏦 Loans</a>
+    <a href="inventory.html">📦 Inventory</a>
+    <a href="report.html">💾 Backup</a>
+    <button class="btn-ghost" onclick="BH.toggleTheme()">🌓</button>
+    <button class="btn-ghost" onclick="if(confirm('Logout?')){BH.logout();location.href='index.html'}">🚪</button>
+  </nav>
+</header>
+
+<main class="container">
+  <div class="page-header">
+    <div class="page-title">🏦 Loans & Advances</div>
+  </div>
+
+  <!-- Summary Stats -->
+  <div class="stats-grid" id="loanStats"></div>
+
+  <!-- Add Loan -->
+  <div class="card">
+    <div class="card-title">➕ Give New Loan / Advance</div>
+    <form id="addLoanForm">
+      <div class="input-row">
+        <div class="form-group">
+          <label class="form-label">👨‍🌾 Farmer *</label>
+          <select id="loanFarmer" required></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">💰 Amount (PKR) *</label>
+          <input type="number" id="loanAmount" placeholder="e.g. 20000" min="1" required/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">📅 Date *</label>
+          <input type="date" id="loanDate" required/>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">📝 Note (optional)</label>
+        <input id="loanNote" placeholder="e.g. Advance for seeds, Emergency loan..."/>
+      </div>
+      <button class="btn" type="submit">🏦 Give Loan</button>
+    </form>
+  </div>
+
+  <!-- All Loans -->
+  <div class="card">
+    <div class="card-title">📋 All Loans</div>
+    <div id="loansList"></div>
+  </div>
+</main>
+
+<!-- Repayment Modal -->
+<div class="modal-overlay" id="repayModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-title">💵 Add Repayment</div>
+      <button class="modal-close" onclick="closeRepayModal()">✕</button>
+    </div>
+    <div id="repayLoanInfo" style="background:var(--accent-light);padding:12px;border-radius:8px;margin-bottom:16px;font-size:14px"></div>
+    <div class="form-group"><label class="form-label">💰 Repayment Amount (PKR)</label><input type="number" id="repayAmount" placeholder="e.g. 5000" min="1"/></div>
+    <div class="form-group"><label class="form-label">📅 Date</label><input type="date" id="repayDate"/></div>
+    <div class="form-group"><label class="form-label">📝 Note</label><input id="repayNote" placeholder="Optional..."/></div>
+    <button class="btn btn-full mt" onclick="submitRepayment()">✅ Record Repayment</button>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+<script src="js/main.js"></script>
+<script>
+  let activeRepayLoanId = null;
+
+  function showToast(msg, type='success') {
+    const t=document.getElementById('toast'); t.textContent=msg; t.className=`toast ${type} show`;
+    setTimeout(()=>t.classList.remove('show'),3000);
+  }
+
+  function openRepayModal(loanId) {
+    activeRepayLoanId = loanId;
+    const loans = BH.getAllLoans(); const d=BH.getData(); const farmers=d.farmers||[];
+    const loan = loans.find(l=>l.id===loanId); if(!loan) return;
+    const fname=(farmers.find(f=>f.id===loan.farmerId)||{}).name||'Unknown';
+    const pending = loan.amount - (loan.paid||0);
+    document.getElementById('repayLoanInfo').innerHTML=`<strong>${fname}</strong> — Loan: ${BH.formatPKR(loan.amount)} | Paid: ${BH.formatPKR(loan.paid||0)} | <strong>Pending: ${BH.formatPKR(pending)}</strong>`;
+    document.getElementById('repayDate').value = BH.today();
+    document.getElementById('repayAmount').value = '';
+    document.getElementById('repayNote').value = '';
+    document.getElementById('repayModal').classList.add('open');
+    document.getElementById('repayAmount').focus();
+  }
+
+  function closeRepayModal() { document.getElementById('repayModal').classList.remove('open'); activeRepayLoanId=null; }
+
+  function submitRepayment() {
+    if (!activeRepayLoanId) return;
+    const amount = document.getElementById('repayAmount').value;
+    const date   = document.getElementById('repayDate').value;
+    const note   = document.getElementById('repayNote').value;
+    const res = BH.addRepayment(activeRepayLoanId, { amount, date, note });
+    if (res.ok) { showToast('✅ Repayment recorded!'); closeRepayModal(); renderLoans(); renderStats(); }
+    else showToast('❌ '+res.msg, 'error');
+  }
+
+  function renderStats() {
+    const loans = BH.getAllLoans();
+    const d=BH.getData(); const farmers=d.farmers||[];
+    const totalGiven   = loans.reduce((s,l)=>s+Number(l.amount||0),0);
+    const totalPaid    = loans.reduce((s,l)=>s+Number(l.paid||0),0);
+    const totalPending = totalGiven - totalPaid;
+    const activeFarmers = [...new Set(loans.filter(l=>l.amount-(l.paid||0)>0).map(l=>l.farmerId))].length;
+    document.getElementById('loanStats').innerHTML=`
+      <div class="stat-card"><div class="stat-icon">🏦</div><div class="stat-label">Total Given</div><div class="stat-value">${BH.formatPKR(totalGiven)}</div></div>
+      <div class="stat-card"><div class="stat-icon">✅</div><div class="stat-label">Total Recovered</div><div class="stat-value" style="color:#2e7d32">${BH.formatPKR(totalPaid)}</div></div>
+      <div class="stat-card"><div class="stat-icon">⏳</div><div class="stat-label">Still Pending</div><div class="stat-value" style="color:#e65100">${BH.formatPKR(totalPending)}</div></div>
+      <div class="stat-card"><div class="stat-icon">👨‍🌾</div><div class="stat-label">Farmers with Loans</div><div class="stat-value">${activeFarmers}</div></div>`;
+  }
+
+  function renderLoans() {
+    const loans = BH.getAllLoans(); const d=BH.getData(); const farmers=d.farmers||[];
+    const container = document.getElementById('loansList');
+    if (loans.length===0) { container.innerHTML='<div class="empty-state"><div style="font-size:48px">🏦</div><p>No loans given yet. Use the form above to add one.</p></div>'; return; }
+    container.innerHTML='';
+    loans.slice().reverse().forEach(l => {
+      const fname=(farmers.find(f=>f.id===l.farmerId)||{}).name||'Unknown';
+      const pending = l.amount - (l.paid||0);
+      const pct = Math.min(100, Math.round((l.paid||0)/l.amount*100));
+      const isFullyPaid = pending <= 0;
+      const div = document.createElement('div');
+      div.className='loan-item';
+      div.innerHTML=`
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">
+          <div>
+            <div style="font-weight:800;font-size:16px">${fname} <span class="badge ${isFullyPaid?'badge-green':'badge-orange'}">${isFullyPaid?'✅ Paid':'⏳ Pending'}</span></div>
+            <div style="font-size:13px;color:var(--muted);margin-top:2px">📅 ${l.date} ${l.note?'• 📝 '+l.note:''}</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-weight:900;font-size:18px;color:var(--accent)">${BH.formatPKR(l.amount)}</div>
+            <div style="font-size:12px;color:var(--muted)">Given</div>
+          </div>
+        </div>
+        <div class="loan-progress"><div class="loan-progress-bar" style="width:${pct}%"></div></div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:10px">
+          <span>✅ Paid: <strong style="color:#2e7d32">${BH.formatPKR(l.paid||0)}</strong></span>
+          <span>${pct}% recovered</span>
+          <span>⏳ Pending: <strong style="color:#e65100">${BH.formatPKR(pending)}</strong></span>
+        </div>
+        ${(l.repayments||[]).length>0?`<details style="margin-bottom:10px"><summary style="cursor:pointer;font-size:13px;color:var(--accent);font-weight:700">📋 View ${l.repayments.length} repayment(s)</summary><div style="margin-top:8px;font-size:13px">${l.repayments.map(r=>`<div style="padding:6px 0;border-bottom:1px solid var(--border)">📅 ${r.date} — ${BH.formatPKR(r.amount)} ${r.note?'('+r.note+')':''}</div>`).join('')}</div></details>`:''}
+        <div class="row">
+          ${!isFullyPaid?`<button class="btn btn-sm" onclick="openRepayModal(${l.id})">💵 Add Repayment</button>`:''}
+          <button class="btn btn-sm btn-danger" onclick="if(confirm('Delete this loan record?')){ BH.deleteLoan(${l.id}); renderLoans(); renderStats(); showToast('Loan deleted'); }">🗑 Delete</button>
+        </div>`;
+      container.appendChild(div);
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    if (!BH.isLoggedIn()) { location.href='index.html'; return; }
+    BH.init();
+    document.getElementById('loanDate').value = BH.today();
+    fillFarmerSelect('loanFarmer');
+    renderStats();
+    renderLoans();
+
+    document.getElementById('addLoanForm').addEventListener('submit', e => {
+      e.preventDefault();
+      const farmerId = document.getElementById('loanFarmer').value;
+      const amount   = document.getElementById('loanAmount').value;
+      const date     = document.getElementById('loanDate').value;
+      const note     = document.getElementById('loanNote').value.trim();
+      if (!farmerId) return showToast('⚠️ Select a farmer', 'error');
+      const res = BH.addLoan({ farmerId, amount, note, date });
+      if (res.ok) { showToast('✅ Loan recorded!'); e.target.reset(); document.getElementById('loanDate').value=BH.today(); fillFarmerSelect('loanFarmer'); renderLoans(); renderStats(); }
+      else showToast('❌ '+res.msg, 'error');
+    });
+  });
+
+  document.getElementById('repayModal').addEventListener('click', function(e){ if(e.target===this) closeRepayModal(); });
+</script>
+</body>
+</html>
