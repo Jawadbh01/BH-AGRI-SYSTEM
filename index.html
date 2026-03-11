@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <title>BH Agriculture System</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <link rel="stylesheet" href="css/style.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+<!-- ══ AUTH SCREEN ══════════════════════════════════════════════════════ -->
+<div id="authScreen" class="auth-wrap">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <span class="logo-mark">🌾</span>
+      <div class="big">BH AGRICULTURE SYSTEM</div>
+      <div class="small">Farm Management Dashboard</div>
+    </div>
+
+    <div class="auth-tabs">
+      <div class="auth-tab active" id="tabLogin" onclick="switchTab('login')">🔐 Login</div>
+      <div class="auth-tab" id="tabSignup" onclick="switchTab('signup')">✍️ Sign Up</div>
+    </div>
+
+    <!-- Login Form -->
+    <div id="loginForm">
+      <div class="form-group">
+        <label class="form-label">👤 Username</label>
+        <input id="loginUser" placeholder="Enter your username" autocomplete="username"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">🔑 Password</label>
+        <input id="loginPass" type="password" placeholder="Enter your password" autocomplete="current-password"/>
+      </div>
+      <button class="btn btn-full" onclick="doLogin()">Login →</button>
+      <p class="hint text-center mt">Test: Jawad / 1214</p>
+    </div>
+
+    <!-- Signup Form -->
+    <div id="signupForm" style="display:none">
+      <div class="form-group">
+        <label class="form-label">👤 Choose Username</label>
+        <input id="signupUser" placeholder="e.g. Ahmed"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">🔑 Choose Password</label>
+        <input id="signupPass" type="password" placeholder="Min 4 characters"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">🔁 Confirm Password</label>
+        <input id="signupPass2" type="password" placeholder="Repeat password"/>
+      </div>
+      <button class="btn btn-full" onclick="doSignup()">Create Account →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ APP SCREEN ══════════════════════════════════════════════════════ -->
+<div id="appScreen" style="display:none">
+
+  <!-- Topbar -->
+  <header class="topbar">
+    <a href="index.html" class="logo">
+      <span class="logo-mark">🌾</span>
+      <div class="logo-text">
+        <div class="big">BH AGRICULTURE</div>
+        <div class="small">Farm Management</div>
+      </div>
+    </a>
+    <div class="menu-toggle" onclick="toggleNav()">☰</div>
+    <nav class="nav" id="mainNav">
+      <a href="index.html" class="active">📊 Dashboard</a>
+      <a href="farmers.html">👨‍🌾 Farmers</a>
+      <a href="expenses.html">💸 Expenses</a>
+      <a href="loans.html">🏦 Loans</a>
+      <a href="inventory.html">📦 Inventory</a>
+      <a href="report.html">💾 Backup</a>
+      <span id="userBadge" class="topbar-user"></span>
+      <button class="btn-ghost" onclick="BH.toggleTheme()" title="Toggle Dark Mode">🌓</button>
+      <button class="btn-ghost" onclick="doLogout()" title="Logout">🚪 Logout</button>
+    </nav>
+  </header>
+
+  <main class="container">
+
+    <!-- Weather Widget -->
+    <div id="weatherWidget" class="weather-widget">
+      <div class="weather-search">
+        <input id="weatherCity" placeholder="🔍 Enter city name (e.g. Lahore)..." onkeydown="if(event.key==='Enter') loadWeather()"/>
+        <button onclick="loadWeather()">Get Weather</button>
+      </div>
+      <div id="weatherContent" style="display:none;width:100%">
+        <div class="weather-main">
+          <div id="wIcon" class="weather-icon">🌤</div>
+          <div>
+            <div id="wTemp" class="weather-temp">--°C</div>
+            <div id="wDesc" class="weather-desc">--</div>
+            <div id="wCity" class="weather-city">--</div>
+          </div>
+        </div>
+        <div class="weather-details">
+          <div class="weather-detail"><div id="wHumid" class="val">--%</div><div class="lbl">Humidity</div></div>
+          <div class="weather-detail"><div id="wWind" class="val">-- km/h</div><div class="lbl">Wind</div></div>
+          <div class="weather-detail"><div id="wFeel" class="val">--°C</div><div class="lbl">Feels Like</div></div>
+        </div>
+      </div>
+      <p id="weatherMsg" class="weather-loading">Enter a city above to get live weather info 🌾</p>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon">👨‍🌾</div>
+        <div class="stat-label">Total Farmers</div>
+        <div class="stat-value" id="statFarmers">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">💰</div>
+        <div class="stat-label">Total Income</div>
+        <div class="stat-value" id="statIncome">₨ 0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">💸</div>
+        <div class="stat-label">Total Expense</div>
+        <div class="stat-value" id="statExpense">₨ 0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">📈</div>
+        <div class="stat-label">Net Profit</div>
+        <div class="stat-value" id="statProfit">₨ 0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">🏦</div>
+        <div class="stat-label">Loans Pending</div>
+        <div class="stat-value" id="statLoans">₨ 0</div>
+      </div>
+    </div>
+
+    <!-- Chart -->
+    <div class="card">
+      <div class="card-title">📊 Profit by Farmer</div>
+      <div class="chart-card"><canvas id="profitChart"></canvas></div>
+    </div>
+
+    <!-- Farmer List -->
+    <div class="card">
+      <div class="page-header">
+        <div class="card-title">👨‍🌾 Farmers Overview</div>
+        <div class="row">
+          <div class="search-bar">
+            <input id="searchInput" placeholder="Search farmers..." style="width:200px" oninput="renderFarmerCards(this.value)"/>
+          </div>
+          <button class="btn btn-sm" onclick="Report.printOverall()">🖨 Print Report</button>
+          <a href="farmers.html" class="btn btn-sm btn-outline">+ Add Farmer</a>
+        </div>
+      </div>
+      <div id="farmerList" class="list-grid"></div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="toast"></div>
+
+<script src="js/main.js"></script>
+<script>
+  function toggleNav() { document.getElementById('mainNav').classList.toggle('open'); }
+
+  function switchTab(tab) {
+    document.getElementById('loginForm').style.display  = tab === 'login'  ? 'block' : 'none';
+    document.getElementById('signupForm').style.display = tab === 'signup' ? 'block' : 'none';
+    document.getElementById('tabLogin').classList.toggle('active',  tab === 'login');
+    document.getElementById('tabSignup').classList.toggle('active', tab === 'signup');
+  }
+
+  function showToast(msg, type='success') {
+    const t = document.getElementById('toast');
+    t.textContent = msg; t.className = `toast ${type} show`;
+    setTimeout(() => t.classList.remove('show'), 3000);
+  }
+
+  function doLogin() {
+    const u = document.getElementById('loginUser').value.trim();
+    const p = document.getElementById('loginPass').value.trim();
+    if (!u || !p) return showToast('Please enter username and password', 'error');
+    if (BH.login(u, p)) { showApp(); }
+    else showToast('Wrong username or password ❌', 'error');
+  }
+
+  function doSignup() {
+    const u  = document.getElementById('signupUser').value.trim();
+    const p  = document.getElementById('signupPass').value.trim();
+    const p2 = document.getElementById('signupPass2').value.trim();
+    if (!u || !p) return showToast('Fill in all fields', 'error');
+    if (p.length < 4) return showToast('Password must be at least 4 characters', 'error');
+    if (p !== p2) return showToast('Passwords do not match ❌', 'error');
+    const res = BH.signup(u, p);
+    if (res.ok) { showToast('Account created! Please login ✅'); switchTab('login'); document.getElementById('loginUser').value = u; }
+    else showToast(res.msg, 'error');
+  }
+
+  function doLogout() {
+    if (confirm('Logout?')) { BH.logout(); showAuth(); }
+  }
+
+  function showApp() {
+    document.getElementById('authScreen').style.display = 'none';
+    document.getElementById('appScreen').style.display = 'block';
+    const user = BH.getCurrentUser();
+    if (user) document.getElementById('userBadge').textContent = '👤 ' + user.username;
+    renderDashboard();
+  }
+
+  function showAuth() {
+    document.getElementById('authScreen').style.display = 'flex';
+    document.getElementById('appScreen').style.display = 'none';
+  }
+
+  // Weather
+  async function loadWeather() {
+    const city = document.getElementById('weatherCity').value.trim();
+    if (!city) return showToast('Enter a city name', 'error');
+    const widget = document.getElementById('weatherWidget');
+    const msg = document.getElementById('weatherMsg');
+    const content = document.getElementById('weatherContent');
+    msg.style.display = 'block'; msg.textContent = '⏳ Loading weather...';
+    content.style.display = 'none';
+    widget.classList.remove('weather-error');
+    try {
+      const res = await fetch(`https://wttr.in/${encodeURIComponent(city)}?format=j1`);
+      if (!res.ok) throw new Error('City not found');
+      const data = await res.json();
+      const cur = data.current_condition[0];
+      const area = data.nearest_area[0];
+      const areaName = area.areaName[0].value + ', ' + area.country[0].value;
+      const desc = cur.weatherDesc[0].value;
+      const temp = cur.temp_C;
+      const feels = cur.FeelsLikeC;
+      const humid = cur.humidity;
+      const wind = cur.windspeedKmph;
+      const iconMap = { 'Sunny':'☀️','Clear':'🌙','Partly cloudy':'⛅','Cloudy':'☁️','Overcast':'☁️','Mist':'🌫','Fog':'🌫','Light rain':'🌦','Moderate rain':'🌧','Heavy rain':'🌧','Thundery outbreaks':'⛈','Blizzard':'🌨','Light snow':'🌨','Patchy rain possible':'🌦' };
+      const icon = Object.entries(iconMap).find(([k]) => desc.toLowerCase().includes(k.toLowerCase()))?.[1] || '🌤';
+      document.getElementById('wIcon').textContent = icon;
+      document.getElementById('wTemp').textContent = temp + '°C';
+      document.getElementById('wDesc').textContent = desc;
+      document.getElementById('wCity').textContent = '📍 ' + areaName;
+      document.getElementById('wHumid').textContent = humid + '%';
+      document.getElementById('wWind').textContent = wind + ' km/h';
+      document.getElementById('wFeel').textContent = feels + '°C';
+      msg.style.display = 'none'; content.style.display = 'flex';
+      localStorage.setItem('bh_weather_city', city);
+    } catch(e) {
+      widget.classList.add('weather-error');
+      msg.textContent = '❌ City not found. Try: Lahore, Karachi, Multan, Faisalabad';
+      content.style.display = 'none';
+    }
+  }
+
+  // Init
+  document.addEventListener('DOMContentLoaded', () => {
+    BH.init();
+    if (BH.isLoggedIn()) showApp();
+    else showAuth();
+    // Try saved city
+    const saved = localStorage.getItem('bh_weather_city');
+    if (saved) { document.getElementById('weatherCity').value = saved; }
+    // Enter key on login
+    document.getElementById('loginPass').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+    document.getElementById('loginUser').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+  });
+</script>
+</body>
+</html>
